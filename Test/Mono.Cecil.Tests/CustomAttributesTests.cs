@@ -412,6 +412,15 @@ namespace Mono.Cecil.Tests {
 		}
 
 		[Test]
+		public void CustomAttributeOnInterfaceImpl ()
+		{
+			TestIL ("ca-ifaceimpl.il", module => {
+				var iface = module.GetType ("FooClass").Interfaces.Single(i => i.InterfaceType.FullName == "IFoo");
+				Assert.IsNotNull(iface.CustomAttributes.Single (a => a.AttributeType.FullName == "FooAttribute"));
+			}, verify: !Platform.OnMono);
+		}
+
+		[Test]
 		public void DefineCustomAttributeFromBlob ()
 		{
 			var file = Path.Combine (Path.GetTempPath (), "CaBlob.dll");

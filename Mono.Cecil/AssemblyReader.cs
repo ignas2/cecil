@@ -172,7 +172,7 @@ namespace Mono.Cecil {
 			ReadGenericParameters (type);
 
 			if (type.HasInterfaces)
-				Read (type.Interfaces);
+				ReadInterfaces (type);
 
 			if (type.HasNestedTypes)
 				ReadTypes (type.NestedTypes);
@@ -211,6 +211,14 @@ namespace Mono.Cecil {
 
 				ReadCustomAttributes (parameter);
 			}
+		}
+
+		void ReadInterfaces(TypeDefinition type)
+		{
+			var interfaces = type.Interfaces;
+
+			for (int i = 0; i < interfaces.Count; ++i)
+				ReadCustomAttributes (interfaces [i]);
 		}
 
 		void ReadSecurityDeclarations (ISecurityDeclarationProvider provider)
@@ -1123,25 +1131,31 @@ namespace Mono.Cecil {
 		public bool HasInterfaces (TypeDefinition type)
 		{
 			InitializeInterfaces ();
-			MetadataToken [] mapping;
+			Row<MetadataToken, int> [] mapping;
 
 			return metadata.TryGetInterfaceMapping (type, out mapping);
 		}
 
-		public Collection<TypeReference> ReadInterfaces (TypeDefinition type)
+		public Collection<Interface> ReadInterfaces (TypeDefinition type)
 		{
 			InitializeInterfaces ();
-			MetadataToken [] mapping;
+			Row<MetadataToken, int> [] mapping;
 
 			if (!metadata.TryGetInterfaceMapping (type, out mapping))
-				return new Collection<TypeReference> ();
+				return new Collection<Interface> ();
 
-			var interfaces = new Collection<TypeReference> (mapping.Length);
+			var interfaces = new Collection<Interface> (mapping.Length);
 
 			this.context = type;
 
-			for (int i = 0; i < mapping.Length; i++)
-				interfaces.Add (GetTypeDefOrRef (mapping [i]));
+			for (int i = 0; i < mapping.Length; i++) {
+				var interface_type = GetTypeDefOrRef(mapping[i].Col1);
+				var @interface = new Interface (interface_type) {
+					MetadataToken = new MetadataToken (TokenType.InterfaceImpl, mapping[i].Col2),
+					OwnerType = type,
+				};
+				interfaces.Add (@interface);
+			}
 
 			metadata.RemoveInterfaceMapping (type);
 
@@ -1155,17 +1169,17 @@ namespace Mono.Cecil {
 
 			int length = MoveTo (Table.InterfaceImpl);
 
-			metadata.Interfaces = new Dictionary<uint, MetadataToken []> (length);
+			metadata.Interfaces = new Dictionary<uint, Row<MetadataToken, int> []> (length);
 
 			for (int i = 0; i < length; i++) {
 				var type = ReadTableIndex (Table.TypeDef);
 				var @interface = ReadMetadataToken (CodedIndex.TypeDefOrRef);
 
-				AddInterfaceMapping (type, @interface);
+				AddInterfaceMapping (type, new Row<MetadataToken, int>(@interface, i + 1));
 			}
 		}
 
-		void AddInterfaceMapping (uint type, MetadataToken @interface)
+		void AddInterfaceMapping (uint type, Row<MetadataToken, int> @interface)
 		{
 			metadata.SetInterfaceMapping (type, AddMapping (metadata.Interfaces, type, @interface));
 		}
